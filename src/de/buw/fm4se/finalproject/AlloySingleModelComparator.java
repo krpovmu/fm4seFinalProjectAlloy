@@ -1,15 +1,28 @@
 package de.buw.fm4se.finalproject;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import javax.swing.JFrame;
+
 import edu.mit.csail.sdg.alloy4.A4Reporter;
+import edu.mit.csail.sdg.alloy4.ConstList;
+import edu.mit.csail.sdg.alloy4.Err;
 import edu.mit.csail.sdg.alloy4.ErrorWarning;
+import edu.mit.csail.sdg.alloy4.Listener;
+import edu.mit.csail.sdg.alloy4.Pair;
+import edu.mit.csail.sdg.alloy4.Pos;
+import edu.mit.csail.sdg.alloy4.SafeList;
 import edu.mit.csail.sdg.ast.Command;
+import edu.mit.csail.sdg.ast.Expr;
 import edu.mit.csail.sdg.ast.Func;
 import edu.mit.csail.sdg.ast.Module;
+import edu.mit.csail.sdg.ast.Sig;
 import edu.mit.csail.sdg.parser.CompUtil;
 import edu.mit.csail.sdg.translator.A4Options;
 import edu.mit.csail.sdg.translator.A4Solution;
@@ -42,10 +55,28 @@ public class AlloySingleModelComparator {
 			A4Options options = new A4Options();
 			options.solver = A4Options.SatSolver.SAT4J;
 
-			// Iterate through the facts or predicates in the model and identify the ones
-			// that have the "ALT" suffix
+			// Iterate through the facts or predicates in the model and identify the ones that have the "ALT" suffix
 			Map<String, Func> predicates = new HashMap<>();
 			Map<String, Func> altPredicates = new HashMap<>();
+			
+			
+//			int number = world.getAllFunc().size();
+//			System.out.println("Number of facts: " + number);
+//			if (number == 1) {
+//				for (Pair<String, Expr> fact : world.getAllFacts()) {
+//					System.out.println(fact.toString());
+//				}
+//			}else if (number > 1) {
+//				for (Func func : world.getAllFunc()) {
+//					String baseName = func.label.substring(func.label.indexOf("/") + 1);
+//					if (baseName.endsWith("ALT")) {
+//						altPredicates.put(baseName.substring(0, baseName.length() - 3), func);
+//					} else {
+//						predicates.put(baseName, func);
+//					}
+//				}
+//			}
+			
 			for (Func func : world.getAllFunc()) {
 				String baseName = func.label.substring(func.label.indexOf("/") + 1);
 				if (baseName.endsWith("ALT")) {
