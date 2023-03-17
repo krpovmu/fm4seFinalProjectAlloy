@@ -60,8 +60,27 @@ public class AlloySingleModelComparator {
 					if (altPred.getKey().contains(pred.getKey())) {
 						String semanticallyEqual = comparePredicates(world, stringAlloyModel, pred.getValue().label,
 								altPred.getValue().label, options, reporter);
-						System.out.println("Comparison of " + pred.getValue().label + " and " + altPred.getValue().label + ":");
-						System.out.println("  Semantically equal: " + semanticallyEqual);
+						System.out.println("Comparison of " + pred.getValue().label + " and " + altPred.getValue().label
+								+ " : " + semanticallyEqual);
+						if (semanticallyEqual.equals("equivalent")) {
+							System.out.println(
+									"For extension comparisons you can create a predicate in you alloy model like this : pred P_and_Q_extension {"
+											+ pred.getValue().label + "  and not  " + altPred.getValue().label + "}");
+							System.out.println(
+									"Or if you prefer evaluate refinement you can create this one: pred P_and_Q_refinement {"
+											+ altPred.getValue().label + "  and not  " + pred.getValue().label + "}");
+						} else if (semanticallyEqual.equals("extension")) {
+							System.out.println(
+									"For refinement comparision you can create this one: pred P_and_Q_refinement {"
+											+ altPred.getValue().label + "  and not  " + pred.getValue().label + "}");
+						} else if (semanticallyEqual.equals("refined")) {
+							System.out.println(
+									"For extension comparisons you can create a predicate in you alloy model like this : pred P_and_Q_extension {"
+											+ pred.getValue().label + "  and not  " + altPred.getValue().label + "}");
+						} else {
+							System.out.println("Comparision between: " + pred.getValue().label + " and "
+									+ altPred.getValue().label + " is Incomparable");
+						}
 					}
 				}
 			}
@@ -110,11 +129,11 @@ public class AlloySingleModelComparator {
 		if (!ansEquivalent.satisfiable()) {
 			return "equivalent";
 		} else if (!ansExtension.satisfiable()) {
-			return "refines";
+			return "extension";
 		} else if (!ansRefinement.satisfiable()) {
-			return "refined by";
+			return "refined";
 		} else {
-			return "incomparable";
+			return "Incomparable";
 		}
 	}
 }
