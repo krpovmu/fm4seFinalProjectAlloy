@@ -1,28 +1,19 @@
 package de.buw.fm4se.finalproject;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
-
-import javax.swing.JFrame;
+import java.util.Set;
 
 import edu.mit.csail.sdg.alloy4.A4Reporter;
-import edu.mit.csail.sdg.alloy4.ConstList;
 import edu.mit.csail.sdg.alloy4.Err;
 import edu.mit.csail.sdg.alloy4.ErrorWarning;
-import edu.mit.csail.sdg.alloy4.Listener;
-import edu.mit.csail.sdg.alloy4.Pair;
-import edu.mit.csail.sdg.alloy4.Pos;
-import edu.mit.csail.sdg.alloy4.SafeList;
 import edu.mit.csail.sdg.ast.Command;
-import edu.mit.csail.sdg.ast.Expr;
+import edu.mit.csail.sdg.ast.ExprVar;
 import edu.mit.csail.sdg.ast.Func;
 import edu.mit.csail.sdg.ast.Module;
-import edu.mit.csail.sdg.ast.Sig;
 import edu.mit.csail.sdg.parser.CompUtil;
 import edu.mit.csail.sdg.translator.A4Options;
 import edu.mit.csail.sdg.translator.A4Solution;
@@ -55,11 +46,11 @@ public class AlloySingleModelComparator {
 			A4Options options = new A4Options();
 			options.solver = A4Options.SatSolver.SAT4J;
 
-			// Iterate through the facts or predicates in the model and identify the ones that have the "ALT" suffix
+			// Iterate through the facts or predicates in the model and identify the ones
+			// that have the "ALT" suffix
 			Map<String, Func> predicates = new HashMap<>();
 			Map<String, Func> altPredicates = new HashMap<>();
-			
-			
+
 //			int number = world.getAllFunc().size();
 //			System.out.println("Number of facts: " + number);
 //			if (number == 1) {
@@ -76,7 +67,7 @@ public class AlloySingleModelComparator {
 //					}
 //				}
 //			}
-			
+
 			for (Func func : world.getAllFunc()) {
 				String baseName = func.label.substring(func.label.indexOf("/") + 1);
 				if (baseName.endsWith("ALT")) {
@@ -167,4 +158,93 @@ public class AlloySingleModelComparator {
 			return "Incomparable";
 		}
 	}
+	
+	public static String compareFacts(Module world, String stringAlloyModel, String factName1, String factName2, A4Options options, A4Reporter reporter) throws Err {
+	    String sigName = findCommonSig(world, factName1, factName2);
+	    if (sigName == null) {
+	        return "Incomparable (no common signature)";
+	    }
+
+	    String newModuleString = stringAlloyModel +
+	        "\npred newCombinedFact[a: " + sigName + "] {\n" +
+	        "    " + factName1 + "[a] <=> " + factName2 + "[a]\n" +
+	        "}\n" +
+	        "run newCombinedFact for 3";
+
+	    Module newWorld = CompUtil.parseOneModule_fromString(reporter, newModuleString);
+	    Command newCmd = new Command(false, 3, 3, 3, "newCombinedFact");
+	    A4Solution sol = TranslateAlloyToKodkod.execute_command(reporter, newWorld.getAllReachableSigs(), newCmd, options);
+
+	    if (sol.satisfiable()) {
+	        return "Equivalent";
+	    }
+
+	    String newModuleString2 = stringAlloyModel +
+	        "\npred newCombinedFact2[a: " + sigName + "] {\n" +
+	        "    " + factName1 + "[a] => " + factName2 + "[a]\n" +
+	        "}\n" +
+	        "run newCombinedFact2 for 3";
+
+	    Module newWorld2 = CompUtil.parseOneModule_fromString(reporter, newModuleString2);
+	    Command newCmd2 = new Command(false, 3, 3, 3, "newCombinedFact2");
+	    A4Solution sol2 = TranslateAlloyToKodkod.execute_command(reporter, newWorld2.getAllReachableSigs(), newCmd2, options);
+
+	    if (sol2.satisfiable()) {
+	        return factName1 + " refines " + factName2;
+	    }
+
+	    String newModuleString3 = stringAlloyModel +
+	        "\npred newCombinedFact3[a: " + sigName + "] {\n" +
+	        "    " + factName2 + "[a] => " + factName1 + "[a]\n" +
+	        "}\n" +
+	        "run newCombinedFact3 for 3";
+
+	    Module newWorld3 = CompUtil.parseOneModule_fromString(reporter, newModuleString3);
+	    Command newCmd3 = new Command(false, 3, 3, 3, "newCombinedFact3");
+	    A4Solution sol3 = TranslateAlloyToKodkod.execute_command(reporter, newWorld3.getAllReachableSigs(), newCmd3, options);
+
+	    if (sol3.satisfiable()) {
+	        return factName2 + " refines " + factName1;
+	    }
+
+	    return "Incomparable";
+	}
+	
+	
+	public static String findCommonSig(Module world, String factOrPredicateName1, String factOrPredicateName2) {
+	    Set<String> sigs1 = new HashSet<>();
+	    Set<String> sigs2 = new HashSet<>();
+
+	    // Find the signatures used in the first fact or predicate
+	    for (Func func : world.getAllFunc()) {
+	        if (func.label.equals(factOrPredicateName1)) {
+	            for (ExprVar param : func.decls.get(0).names) {
+	                sigs1.add(param.type().toString());
+	            }
+	            break;
+	        }
+	    }
+
+	    // Find the signatures used in the second fact or predicate
+	    for (Func func : world.getAllFunc()) {
+	        if (func.label.equals(factOrPredicateName2)) {
+	            for (ExprVar param : func.decls.get(0).names) {
+	                sigs2.add(param.type().toString());
+	            }
+	            break;
+	        }
+	    }
+
+	    // Find the common signature
+	    for (String sig1 : sigs1) {
+	        if (sigs2.contains(sig1)) {
+	            return sig1;
+	        }
+	    }
+
+	    return null;
+	}
+
+	
+	
 }
