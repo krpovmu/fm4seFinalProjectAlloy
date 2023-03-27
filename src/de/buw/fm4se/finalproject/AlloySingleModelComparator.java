@@ -3,14 +3,14 @@ package de.buw.fm4se.finalproject;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 import edu.mit.csail.sdg.alloy4.A4Reporter;
-import edu.mit.csail.sdg.alloy4.Err;
 import edu.mit.csail.sdg.alloy4.ErrorWarning;
+import edu.mit.csail.sdg.alloy4.Pair;
+import edu.mit.csail.sdg.alloy4.SafeList;
 import edu.mit.csail.sdg.ast.Command;
+import edu.mit.csail.sdg.ast.Expr;
 import edu.mit.csail.sdg.ast.ExprVar;
 import edu.mit.csail.sdg.ast.Func;
 import edu.mit.csail.sdg.ast.Module;
@@ -48,60 +48,77 @@ public class AlloySingleModelComparator {
 
 			// Iterate through the facts or predicates in the model and identify the ones
 			// that have the "ALT" suffix
-			Map<String, Func> predicates = new HashMap<>();
-			Map<String, Func> altPredicates = new HashMap<>();
+			Map<String, Object> predicatesOrFacts = new HashMap<>();
+			Map<String, Object> altPredicatesOrFacts = new HashMap<>();
 
-//			int number = world.getAllFunc().size();
-//			System.out.println("Number of facts: " + number);
-//			if (number == 1) {
-//				for (Pair<String, Expr> fact : world.getAllFacts()) {
-//					System.out.println(fact.toString());
-//				}
-//			}else if (number > 1) {
-//				for (Func func : world.getAllFunc()) {
-//					String baseName = func.label.substring(func.label.indexOf("/") + 1);
-//					if (baseName.endsWith("ALT")) {
-//						altPredicates.put(baseName.substring(0, baseName.length() - 3), func);
-//					} else {
-//						predicates.put(baseName, func);
-//					}
+			int numPredicates = world.getAllFunc().size();
+			int numFacts = world.getAllFacts().size();
+			System.out.println("Number of Predicates: " + numPredicates);
+
+			if (numPredicates == 1 && numFacts > 0) {
+				world = changeFactsToPredicates(world, options, reporter);
+			}
+
+			if (numPredicates > 1) {
+				for (Func func : world.getAllFunc()) {
+					String baseName = func.label.substring(func.label.indexOf("/") + 1);
+					if (baseName.endsWith("ALT")) {
+						altPredicatesOrFacts.put(baseName.substring(0, baseName.length() - 3), func);
+					} else {
+						predicatesOrFacts.put(baseName, func);
+					}
+				}
+			} else {
+				System.err.println("Can you please give a valid model.");
+				return;
+			}
+
+			////////////////
+//			for (Func func : world.getAllFunc()) {
+//				String baseName = func.label.substring(func.label.indexOf("/") + 1);
+//				if (baseName.endsWith("ALT")) {
+//					altPredicates.put(baseName.substring(0, baseName.length() - 3), func);
+//				} else {
+//					predicates.put(baseName, func);
 //				}
 //			}
 
-			for (Func func : world.getAllFunc()) {
-				String baseName = func.label.substring(func.label.indexOf("/") + 1);
-				if (baseName.endsWith("ALT")) {
-					altPredicates.put(baseName.substring(0, baseName.length() - 3), func);
-				} else {
-					predicates.put(baseName, func);
-				}
-			}
+//			if (numPredicates == 1) {
+//							semanticallyEqual = compareFacts(world, stringAlloyModel, predOrFact, altPredOrFact,options, reporter);
 
-			for (Map.Entry<String, Func> pred : predicates.entrySet()) {
-				for (Map.Entry<String, Func> altPred : altPredicates.entrySet()) {
-					if (altPred.getKey().contains(pred.getKey())) {
-						String semanticallyEqual = comparePredicates(world, stringAlloyModel, pred.getValue().label,
-								altPred.getValue().label, options, reporter);
-						System.out.println("Comparison of " + pred.getValue().label + " and " + altPred.getValue().label
-								+ " : " + semanticallyEqual);
+//			}
+
+			for (Map.Entry<String, Object> predFact : predicatesOrFacts.entrySet()) {
+				for (Map.Entry<String, Object> altPredFact : altPredicatesOrFacts.entrySet()) {
+					if (altPredFact.getKey().contains(predFact.getKey())) {
+
+						String predOrFact = predFact.getValue().toString();
+						String altPredOrFact = altPredFact.getValue().toString();
+						String semanticallyEqual = "";
+
+						semanticallyEqual = comparePredicates(world, stringAlloyModel, predOrFact, altPredOrFact,
+								options, reporter);
+
+						System.out.println(
+								"Comparison of " + predOrFact + " and " + altPredOrFact + " : " + semanticallyEqual);
 						if (semanticallyEqual.equals("equivalent")) {
 							System.out.println(
 									"For extension comparisons you can create a predicate in you alloy model like this : pred P_and_Q_extension {"
-											+ pred.getValue().label + "  and not  " + altPred.getValue().label + "}");
+											+ predOrFact + "  and not  " + altPredOrFact + "}");
 							System.out.println(
 									"Or if you prefer evaluate refinement you can create this one: pred P_and_Q_refinement {"
-											+ altPred.getValue().label + "  and not  " + pred.getValue().label + "}");
+											+ altPredOrFact + "  and not  " + predOrFact + "}");
 						} else if (semanticallyEqual.equals("extension")) {
 							System.out.println(
 									"For refinement comparision you can create this one: pred P_and_Q_refinement {"
-											+ altPred.getValue().label + "  and not  " + pred.getValue().label + "}");
+											+ altPredOrFact + "  and not  " + predOrFact + "}");
 						} else if (semanticallyEqual.equals("refined")) {
 							System.out.println(
 									"For extension comparisons you can create a predicate in you alloy model like this : pred P_and_Q_extension {"
-											+ pred.getValue().label + "  and not  " + altPred.getValue().label + "}");
+											+ predOrFact + "  and not  " + altPredOrFact + "}");
 						} else {
-							System.out.println("Comparision between: " + pred.getValue().label + " and "
-									+ altPred.getValue().label + " is Incomparable");
+							System.out.println("Comparision between: " + predOrFact + " and " + altPredOrFact
+									+ " is Incomparable");
 						}
 					}
 				}
@@ -149,102 +166,42 @@ public class AlloySingleModelComparator {
 		// Analyze the results and return the relationship between the two predicates or
 		// facts
 		if (!ansEquivalent.satisfiable()) {
-			return "equivalent";
+			return "Equivalent";
 		} else if (!ansExtension.satisfiable()) {
-			return "extension";
+			return "Extension";
 		} else if (!ansRefinement.satisfiable()) {
-			return "refined";
+			return "Refined";
 		} else {
 			return "Incomparable";
 		}
 	}
-	
-	public static String compareFacts(Module world, String stringAlloyModel, String factName1, String factName2, A4Options options, A4Reporter reporter) throws Err {
-	    String sigName = findCommonSig(world, factName1, factName2);
-	    if (sigName == null) {
-	        return "Incomparable (no common signature)";
-	    }
 
-	    String newModuleString = stringAlloyModel +
-	        "\npred newCombinedFact[a: " + sigName + "] {\n" +
-	        "    " + factName1 + "[a] <=> " + factName2 + "[a]\n" +
-	        "}\n" +
-	        "run newCombinedFact for 3";
+	private static Module changeFactsToPredicates(Module world, A4Options options, A4Reporter reporter)
+			throws Exception {
 
-	    Module newWorld = CompUtil.parseOneModule_fromString(reporter, newModuleString);
-	    Command newCmd = new Command(false, 3, 3, 3, "newCombinedFact");
-	    A4Solution sol = TranslateAlloyToKodkod.execute_command(reporter, newWorld.getAllReachableSigs(), newCmd, options);
-
-	    if (sol.satisfiable()) {
-	        return "Equivalent";
-	    }
-
-	    String newModuleString2 = stringAlloyModel +
-	        "\npred newCombinedFact2[a: " + sigName + "] {\n" +
-	        "    " + factName1 + "[a] => " + factName2 + "[a]\n" +
-	        "}\n" +
-	        "run newCombinedFact2 for 3";
-
-	    Module newWorld2 = CompUtil.parseOneModule_fromString(reporter, newModuleString2);
-	    Command newCmd2 = new Command(false, 3, 3, 3, "newCombinedFact2");
-	    A4Solution sol2 = TranslateAlloyToKodkod.execute_command(reporter, newWorld2.getAllReachableSigs(), newCmd2, options);
-
-	    if (sol2.satisfiable()) {
-	        return factName1 + " refines " + factName2;
-	    }
-
-	    String newModuleString3 = stringAlloyModel +
-	        "\npred newCombinedFact3[a: " + sigName + "] {\n" +
-	        "    " + factName2 + "[a] => " + factName1 + "[a]\n" +
-	        "}\n" +
-	        "run newCombinedFact3 for 3";
-
-	    Module newWorld3 = CompUtil.parseOneModule_fromString(reporter, newModuleString3);
-	    Command newCmd3 = new Command(false, 3, 3, 3, "newCombinedFact3");
-	    A4Solution sol3 = TranslateAlloyToKodkod.execute_command(reporter, newWorld3.getAllReachableSigs(), newCmd3, options);
-
-	    if (sol3.satisfiable()) {
-	        return factName2 + " refines " + factName1;
-	    }
-
-	    return "Incomparable";
+//		String factAlt = "";
+//		String factNalt = "";
+//		for (Pair<String, Expr> fact : world.getAllFacts()) {
+//			if (fact.toString().endsWith("ALT")) {
+//				factAlt = fact.toString().substring(0, fact.toString().length() - 4);
+//			} else {
+//				factNalt = fact.toString();
+//			}
+//
+//			if (factAlt.equalsIgnoreCase(factNalt)) {
+//				System.out.println(factAlt.toString());
+//
+//			}
+////			System.out.println("Base Name: " + baseName + " name converted " + factAlt);
+//		}
+////		if (factAlt.equals(factOri))
+		
+		
+		SafeList<Pair<String, Expr>> facts = world.getAllFacts();
+		
+		
+		
+		
+		return world;
 	}
-	
-	
-	public static String findCommonSig(Module world, String factOrPredicateName1, String factOrPredicateName2) {
-	    Set<String> sigs1 = new HashSet<>();
-	    Set<String> sigs2 = new HashSet<>();
-
-	    // Find the signatures used in the first fact or predicate
-	    for (Func func : world.getAllFunc()) {
-	        if (func.label.equals(factOrPredicateName1)) {
-	            for (ExprVar param : func.decls.get(0).names) {
-	                sigs1.add(param.type().toString());
-	            }
-	            break;
-	        }
-	    }
-
-	    // Find the signatures used in the second fact or predicate
-	    for (Func func : world.getAllFunc()) {
-	        if (func.label.equals(factOrPredicateName2)) {
-	            for (ExprVar param : func.decls.get(0).names) {
-	                sigs2.add(param.type().toString());
-	            }
-	            break;
-	        }
-	    }
-
-	    // Find the common signature
-	    for (String sig1 : sigs1) {
-	        if (sigs2.contains(sig1)) {
-	            return sig1;
-	        }
-	    }
-
-	    return null;
-	}
-
-	
-	
 }
