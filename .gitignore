@@ -61,6 +61,7 @@ tmp/
 local.properties
 .loadpath
 .factorypath
+new_model.als
 
 ##############################
 ## NetBeans
