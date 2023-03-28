@@ -11,9 +11,9 @@ import edu.mit.csail.sdg.alloy4.Pair;
 import edu.mit.csail.sdg.alloy4.SafeList;
 import edu.mit.csail.sdg.ast.Command;
 import edu.mit.csail.sdg.ast.Expr;
-import edu.mit.csail.sdg.ast.ExprVar;
 import edu.mit.csail.sdg.ast.Func;
 import edu.mit.csail.sdg.ast.Module;
+import edu.mit.csail.sdg.ast.Sig;
 import edu.mit.csail.sdg.parser.CompUtil;
 import edu.mit.csail.sdg.translator.A4Options;
 import edu.mit.csail.sdg.translator.A4Solution;
@@ -41,7 +41,9 @@ public class AlloySingleModelComparator {
 			// Load the Alloy model from the file
 			Module world = CompUtil.parseEverything_fromFile(reporter, null, modelPath);
 
-			String stringAlloyModel = new String(Files.readAllBytes(Paths.get(modelPath)));
+			String alternativeModelPath = "./new_model.als";
+//			String stringAlloyModel = new String(Files.readAllBytes(Paths.get(modelPath)));
+			String stringAlloyModel = new String();
 
 			A4Options options = new A4Options();
 			options.solver = A4Options.SatSolver.SAT4J;
@@ -56,14 +58,20 @@ public class AlloySingleModelComparator {
 			System.out.println("Number of Predicates: " + numPredicates);
 
 			if (numPredicates == 1 && numFacts > 0) {
-				world = changeFactsToPredicates(world, options, reporter);
+				world = changeFactsToPredicates(world, options, reporter, alternativeModelPath);
+				stringAlloyModel = new String(Files.readAllBytes(Paths.get(alternativeModelPath)));
+			} else {
+				stringAlloyModel = new String(Files.readAllBytes(Paths.get(modelPath)));
 			}
 
-			if (numPredicates > 1) {
+			int numNewPredicates = world.getAllFunc().size();
+
+			if (numNewPredicates > 1) {
 				for (Func func : world.getAllFunc()) {
 					String baseName = func.label.substring(func.label.indexOf("/") + 1);
 					if (baseName.endsWith("ALT")) {
-						altPredicatesOrFacts.put(baseName.substring(0, baseName.length() - 3), func);
+//						altPredicatesOrFacts.put(baseName.substring(0, baseName.length() - 3), func);
+						altPredicatesOrFacts.put(baseName, func);
 					} else {
 						predicatesOrFacts.put(baseName, func);
 					}
@@ -73,27 +81,16 @@ public class AlloySingleModelComparator {
 				return;
 			}
 
-			////////////////
-//			for (Func func : world.getAllFunc()) {
-//				String baseName = func.label.substring(func.label.indexOf("/") + 1);
-//				if (baseName.endsWith("ALT")) {
-//					altPredicates.put(baseName.substring(0, baseName.length() - 3), func);
-//				} else {
-//					predicates.put(baseName, func);
-//				}
-//			}
-
-//			if (numPredicates == 1) {
-//							semanticallyEqual = compareFacts(world, stringAlloyModel, predOrFact, altPredOrFact,options, reporter);
-
-//			}
-
 			for (Map.Entry<String, Object> predFact : predicatesOrFacts.entrySet()) {
 				for (Map.Entry<String, Object> altPredFact : altPredicatesOrFacts.entrySet()) {
 					if (altPredFact.getKey().contains(predFact.getKey())) {
 
-						String predOrFact = predFact.getValue().toString();
-						String altPredOrFact = altPredFact.getValue().toString();
+//						String predOrFact = predFact.getValue().toString();
+//						String altPredOrFact = altPredFact.getValue().toString();
+
+						String predOrFact = predFact.getKey().toString();
+						String altPredOrFact = altPredFact.getKey().toString();
+
 						String semanticallyEqual = "";
 
 						semanticallyEqual = comparePredicates(world, stringAlloyModel, predOrFact, altPredOrFact,
@@ -176,32 +173,43 @@ public class AlloySingleModelComparator {
 		}
 	}
 
-	private static Module changeFactsToPredicates(Module world, A4Options options, A4Reporter reporter)
-			throws Exception {
+	private static Module changeFactsToPredicates(Module world, A4Options options, A4Reporter reporter,
+			String outputFilePath) throws Exception {
 
-//		String factAlt = "";
-//		String factNalt = "";
-//		for (Pair<String, Expr> fact : world.getAllFacts()) {
-//			if (fact.toString().endsWith("ALT")) {
-//				factAlt = fact.toString().substring(0, fact.toString().length() - 4);
-//			} else {
-//				factNalt = fact.toString();
-//			}
-//
-//			if (factAlt.equalsIgnoreCase(factNalt)) {
-//				System.out.println(factAlt.toString());
-//
-//			}
-////			System.out.println("Base Name: " + baseName + " name converted " + factAlt);
-//		}
-////		if (factAlt.equals(factOri))
-		
-		
+//		String outputFilePath = "./new_model.als";
+		SafeList<Sig> signatures = world.getAllSigs();
 		SafeList<Pair<String, Expr>> facts = world.getAllFacts();
-		
-		
-		
-		
-		return world;
+		SafeList<Func> newPreds = new SafeList<>();
+
+		for (Pair<String, Expr> fact : facts) {
+			String factName = "pred_" + fact.a;
+			Expr factExpr = fact.b;
+			Func newPred = new Func(null, factName, null, factExpr, factExpr);
+			newPreds.add(newPred);
+		}
+
+		StringBuilder newModel = new StringBuilder();
+
+		if (signatures.size() > 0) {
+			for (Sig sig : signatures) {
+				newModel.append(sig.explain().toString()).append("\n");
+			}
+		}
+
+		if (newPreds.size() > 0) {
+			for (Func newfunc : newPreds) {
+				newModel.append("pred " + newfunc.label + " { " + newfunc.getBody() + " } \n");
+			}
+		}
+
+		String genericRun = "run {} for 3 \n";
+		newModel.append(genericRun);
+
+		Files.write(Paths.get(outputFilePath), newModel.toString().getBytes());
+		System.out.println("Output file created: " + outputFilePath);
+
+		Module newWorld = CompUtil.parseEverything_fromFile(reporter, null, outputFilePath);
+
+		return newWorld;
 	}
 }
